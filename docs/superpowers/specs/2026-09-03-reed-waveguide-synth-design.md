@@ -40,8 +40,11 @@
   **ローカル配信が前提**。
 - **SharedArrayBuffer は使わない**。COOP/COEP ヘッダが必要で `http.server` では出せない。
   worklet → main のデータは `port.postMessage`。
-- **Node は未インストール**。`node --test` は使えない → テストはブラウザ内テストページ。
+- **Node は `D:\node-v24.20.0-win-x64\node.exe`（v24.20.0）にある**（2026-09-03 に動作確認）。
+  `node --test` が使えるので DSP の単体テストはヘッドレスで走らせる。
+  ESM 構文は Node 24 が自動判定するので **`package.json` は不要**（`.js` のまま `import` が通る）。
 - npm・バンドラ・TypeScript は使わない（姉妹プロジェクトの build-free を維持）。
+  `node` はテスト実行にのみ使い、ビルドには使わない。
 - Python は PATH 上が Microsoft Store のエイリアスなので、サーバ起動には conda 環境
   `myenv311` の python を使う。
 
@@ -66,7 +69,6 @@ structured clone に任せる。1メッセージ約 18 KB × 30 Hz ≈ 550 KB/s�
 D:\claude_code\self_osc_synth\
   README.md
   index.html                     本体
-  tests.html                     テストページ
   serve.py                       no-cache ヘッダ付き http.server（開発時の再読込用）
   worklet/
     reed-tube-processor.js       DSP 全部。import 文なし・自己完結
@@ -92,7 +94,9 @@ if (typeof registerProcessor !== 'undefined') {
 ```
 
 `export` があっても AudioWorklet はモジュールとして評価するので無害。ガードがあるので
-テストページから普通の ES module として `import` できる。**DSP のコピーを作らずに単体テストできる。**
+**Node からも普通の ES module として `import` できる**（2026-09-03 に v24.20.0 で確認。
+`AudioWorkletProcessor` が未定義でもガードが評価を止めるので `ReferenceError` にならない）。
+→ **DSP のコピーを作らずに単体テストできる。**
 `import` 文は worklet 内で使わない（ブラウザ差が出るため）。
 
 ## 4. DSP コア
@@ -263,9 +267,17 @@ UI にもその旨を出す。
 
 ## 9. テスト
 
-Node が無いので **ブラウザ内テストページ**（`tests.html` が `tests/model.test.js` を読む）。
-同じ `ReedTubeModel` を import するのでモデルのコピーは作らない。自前の tiny assert、
-結果を DOM に緑/赤で出す。
+**`node --test` でヘッドレスに走らせる**。`node:test` + `node:assert/strict`、依存ゼロ。
+`tests/model.test.js` が `worklet/reed-tube-processor.js` から `ReedTubeModel` を直接 import
+するので、**モデルのコピーは作らない**（§3 のガードのおかげで Node から読める）。
+
+```
+"D:\node-v24.20.0-win-x64\node.exe" --test
+```
+
+ブラウザ内テストページは作らない。DSP テストはブラウザを必要とせず、
+ブラウザが必要なもの（AudioWorklet 配線・MIDI・Canvas）は下の手動受け入れ基準で見る。
+テスト経路は1本に保つ。
 
 ### 自動テスト
 
@@ -292,7 +304,7 @@ Node が無いので **ブラウザ内テストページ**（`tests.html` が `t
 
 ## 10. 実装の段取り
 
-1. `ReedTubeModel`（DSP コア）+ `tests/model.test.js` + `tests.html` — 音を出す前に物理を固める
+1. `ReedTubeModel`（DSP コア）+ `tests/model.test.js` — `node --test` が通るまで、音を出す前に物理を固める
 2. `index.html` + `main.js` + 最小の worklet 配線 — 固定パラメータで音が出る
 3. `params.js` + `ui.js` — スライダー
 4. `midi.js` — MIDI と QWERTY フォールバック
@@ -301,11 +313,20 @@ Node が無いので **ブラウザ内テストページ**（`tests.html` が `t
 
 ## 11. 起動方法
 
+### テスト（ブラウザ不要）
+
+```
+cd D:\claude_code\self_osc_synth
+"D:\node-v24.20.0-win-x64\node.exe" --test
+```
+
+### 演奏
+
 ```
 conda activate myenv311
 cd D:\claude_code\self_osc_synth
 python serve.py            # 既定 http://localhost:8000
 ```
 
-ブラウザで `http://localhost:8000/`（テストは `/tests.html`）。
-**`file://` で開かないこと** — Web MIDI が動かない。
+ブラウザで `http://localhost:8000/`。
+**`file://` で開かないこと** — Web MIDI が secure context 必須のため動かない。
