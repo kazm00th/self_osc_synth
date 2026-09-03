@@ -2,7 +2,7 @@
 
 2026-09-04
 
-対象: [`2026-09-03-reed-waveguide-synth-design.md`](./2026-09-03-reed-waveguide-synth-design.md)（339行）
+対象: [`2026-09-03-reed-waveguide-synth-design.md`](../2026-09-03-reed-waveguide-synth-design.md)（339行）
 本書は指摘のみ。設計書本体は未編集。コード未着手。
 
 **検算済み・問題なし**: §4.3 の閉形式流量解は `b ≥ 0` / `b < 0` の両分岐とも §4.2 の非線形式
