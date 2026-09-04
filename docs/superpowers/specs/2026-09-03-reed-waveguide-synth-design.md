@@ -1,7 +1,7 @@
 # シングルリード自励振動 + デジタル導波路 楽音合成装置 — 設計書
 
 初版 2026-09-03 / 改訂1 2026-09-04（[レビュー1](./old/2026-09-04-reed-waveguide-synth-design-review.md) R1–R23）
-/ 改訂2 2026-09-04（[レビュー2](./2026-09-04-reed-waveguide-synth-design-review-2.md) R24–R47, T1–T9）
+/ 改訂2 2026-09-04（[レビュー2](./old/2026-09-04-reed-waveguide-synth-design-review-2.md) R24–R47, T1–T9）
 
 ## 1. 目的
 

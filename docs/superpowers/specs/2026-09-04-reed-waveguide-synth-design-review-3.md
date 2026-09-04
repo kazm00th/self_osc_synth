@@ -3,7 +3,7 @@
 2026-09-04
 
 対象: [`2026-09-03-reed-waveguide-synth-design.md`](./2026-09-03-reed-waveguide-synth-design.md)（改訂2 2026-09-04、710行）
-前回: [`2026-09-04-reed-waveguide-synth-design-review-2.md`](./2026-09-04-reed-waveguide-synth-design-review-2.md)（R24–R47, T1–T9）
+前回: [`2026-09-04-reed-waveguide-synth-design-review-2.md`](./old/2026-09-04-reed-waveguide-synth-design-review-2.md)（R24–R47, T1–T9）
 初回: [`old/2026-09-04-reed-waveguide-synth-design-review.md`](./old/2026-09-04-reed-waveguide-synth-design-review.md)（R1–R23）
 
 本書は指摘のみ。設計書本体・コードとも未編集。
