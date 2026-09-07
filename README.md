@@ -3,6 +3,8 @@
 シングルリード（クラリネット）の自励振動 + 円筒管デジタル導波路の、
 ブラウザ実時間 MIDI 楽器。
 
+**演奏する**: https://kazm00th.github.io/self_osc_synth/
+
 設計の詳細は [`HANDOVER.md`](./HANDOVER.md) と
 [`docs/superpowers/specs/2026-09-03-reed-waveguide-synth-design.md`](./docs/superpowers/specs/2026-09-03-reed-waveguide-synth-design.md)
 を参照。
