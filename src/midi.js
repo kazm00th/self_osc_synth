@@ -76,6 +76,7 @@ export function createMidiController(workletNode, audioCtx, opts) {
   const heldNotes = []; // 後ろが最新（後着優先）
   let expressionSource = 'none';
   let expr01 = 0; // CC / 127
+  let lastVelocity01 = 0; // 直近に鳴らしたノートのベロシティ（CC再計算時に使う）
 
   const gammaParam = () => workletNode.parameters.get('gamma');
   const gateParam = () => workletNode.parameters.get('gate');
@@ -114,6 +115,7 @@ export function createMidiController(workletNode, audioCtx, opts) {
     heldNotes.push(note);
 
     const velocity01 = velocity / 127;
+    lastVelocity01 = velocity01;
     retune(note);
     const g = applyGammaTarget(velocity01);
 
@@ -157,6 +159,8 @@ export function createMidiController(workletNode, audioCtx, opts) {
 
   /** @param {number} ccNumber @param {number} value 0-127 */
   function setExpressionCC(ccNumber, value) {
+    // 'none' では CC は一切 γ に影響しない（§6: なし = gammaBase のみ）
+    if (expressionSource === 'none') return;
     if (
       (expressionSource === 'breath' && ccNumber !== CC_BREATH) ||
       (expressionSource === 'modulation' && ccNumber !== CC_MODULATION)
@@ -166,8 +170,8 @@ export function createMidiController(workletNode, audioCtx, opts) {
     expr01 = value / 127;
     const note = currentSoundingNote();
     if (note != null) {
-      const velocity01 = 0; // 直近ベロシティは保持していない簡易実装。§6 のブレス経路では未使用
-      applyGammaTarget(velocity01);
+      // ブレスは velocity01 を使わない経路なので lastVelocity01=0 でも無害（R56）
+      applyGammaTarget(lastVelocity01);
     }
   }
 

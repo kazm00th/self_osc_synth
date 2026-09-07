@@ -1,7 +1,31 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { noteToLength, computeGammaTarget, isNoteOffVelocity } from '../src/midi.js';
+import { noteToLength, computeGammaTarget, isNoteOffVelocity, createMidiController } from '../src/midi.js';
 import { GAMMA_BASE_MIN, GAMMA_BASE_MAX, GAMMA_CEILING } from '../src/params.js';
+
+// createMidiController はブラウザ依存（AudioParam/AudioContext）だが、
+// ロジック自体は薄いモックで node --test から検証できる。
+function makeFakeParam() {
+  return {
+    value: 0,
+    setValueAtTime(v) { this.value = v; },
+    setTargetAtTime(v) { this.value = v; },
+  };
+}
+function makeFakeWorkletNode() {
+  const params = new Map([
+    ['gamma', makeFakeParam()],
+    ['gate', makeFakeParam()],
+    ['tubeLength', makeFakeParam()],
+  ]);
+  return { parameters: { get: (id) => params.get(id) } };
+}
+function makeFakeAudioCtx() {
+  return { currentTime: 0 };
+}
+function makeGammaConstants() {
+  return { gammaBaseMin: GAMMA_BASE_MIN, gammaBaseMax: GAMMA_BASE_MAX, gammaCeiling: GAMMA_CEILING };
+}
 
 const C_SOUND = 343;
 
@@ -79,4 +103,42 @@ test('test26: computeGammaTarget — 不変条件・ソース別写像・単調�
   assert.equal(isNoteOffVelocity(0), true);
   assert.equal(isNoteOffVelocity(1), false);
   assert.equal(isNoteOffVelocity(127), false);
+});
+
+test('createMidiController: 表現ソース=なし の状態で CC を送っても gamma が変化しない（回帰）', () => {
+  const workletNode = makeFakeWorkletNode();
+  const audioCtx = makeFakeAudioCtx();
+  const controller = createMidiController(workletNode, audioCtx, {
+    getEnvelope: () => ({ attackMs: 20, releaseMs: 80 }),
+    gammaConstants: makeGammaConstants(),
+  });
+
+  controller.setExpressionSource('none');
+  controller.noteOn(60, 100); // velocity01 = 100/127
+  const gammaAfterNoteOn = workletNode.parameters.get('gamma').value;
+
+  controller.setExpressionCC(1, 64); // モジュレーションホイールを動かす（source は 'none'）
+  const gammaAfterCC = workletNode.parameters.get('gamma').value;
+
+  assert.equal(gammaAfterCC, gammaAfterNoteOn, `CCで変化してはいけない: before=${gammaAfterNoteOn} after=${gammaAfterCC}`);
+});
+
+test('createMidiController: モジュレーションモードでCCを送ってもベロシティ由来のgammaBaseは保持される（回帰）', () => {
+  const workletNode = makeFakeWorkletNode();
+  const audioCtx = makeFakeAudioCtx();
+  const controller = createMidiController(workletNode, audioCtx, {
+    getEnvelope: () => ({ attackMs: 20, releaseMs: 80 }),
+    gammaConstants: makeGammaConstants(),
+  });
+
+  controller.setExpressionSource('modulation');
+  controller.noteOn(60, 127); // velocity01 = 1（最大）
+
+  controller.setExpressionCC(1, 0); // ホイール最小 = expr01=0 → gammaBase のはず
+  const g = workletNode.parameters.get('gamma').value;
+  const expectedGammaBase = GAMMA_BASE_MIN + 1 * (GAMMA_BASE_MAX - GAMMA_BASE_MIN); // velocity01=1
+  assert.ok(
+    Math.abs(g - expectedGammaBase) < 1e-9,
+    `velocity由来のgammaBaseが失われている: g=${g} expected=${expectedGammaBase}`
+  );
 });
