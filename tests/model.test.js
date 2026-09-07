@@ -621,6 +621,44 @@ test('test24: パラメータランプの滑らかさ — tubeLength を50msで�
   assert.ok(rampMaxDelta < 3 * steadyMaxDelta, `rampMaxDelta=${rampMaxDelta} steadyMaxDelta=${steadyMaxDelta}`);
 });
 
+// ---- 手順2: worklet 配線のための補助 API ----
+
+test('applyKRateParams: k-rate パラメータを設定し係数を再計算する', () => {
+  const m = new ReedTubeModel({ tubeLength: 0.6 });
+  const before = { a1: m._coeffOpen.a1, bellA: m._bellA };
+
+  m.applyKRateParams({ reedFreq: 3000, bellCutoff: 800 });
+
+  assert.equal(m.reedFreq, 3000);
+  assert.equal(m.bellCutoff, 800);
+  assert.notEqual(m._coeffOpen.a1, before.a1, 'reedFreq変更後も係数が再計算されていない');
+  assert.notEqual(m._bellA, before.bellA, 'bellCutoff変更後も係数が再計算されていない');
+
+  // 未指定のフィールドは変わらない
+  assert.equal(m.zeta, 0.25);
+});
+
+test('test30: 2× 切替後のループ遅延 — フェード明け+グライド静定後のf0が切替前と±1%', () => {
+  const settle = Math.floor(0.3 * FS);
+  const tailLen = Math.floor(0.1 * FS);
+
+  const m = new ReedTubeModel({ tubeLength: 0.6, seed: 71 });
+  m.process(settle, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+  const before = m.process(tailLen, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+  const f0Before = FS / measurePeriod(before.out1);
+
+  m.setOversample(2);
+  assert.equal(m.fsInternal, FS * 2);
+
+  // フェード（5ms）+ グライド静定（3τD=45ms）を待ってから測定
+  m.process(Math.floor(0.1 * FS), { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+  const after = m.process(tailLen, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+  const f0After = FS / measurePeriod(after.out1);
+
+  const relErr = Math.abs(f0After - f0Before) / f0Before;
+  assert.ok(relErr < 0.01, `f0Before=${f0Before} f0After=${f0After} relErr=${relErr}`);
+});
+
 test('test31: 非有限ガードが同じブロック内で効く', () => {
   const m = new ReedTubeModel({ tubeLength: 0.6, seed: 51 });
   m.process(1000, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });

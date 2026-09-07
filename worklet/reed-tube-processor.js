@@ -218,6 +218,92 @@ export class ReedTubeModel {
     this._bellA = Math.exp((-2 * Math.PI * this.bellCutoff) / this.fsInternal);
   }
 
+  /**
+   * k-rate パラメータ（zeta, reedFreq, reedQ, contactQ, bellCutoff, wallLoss, noise）を
+   * まとめて設定し、必要な係数を再計算する。worklet 側は AudioParam の値をブロック毎に
+   * ここへ渡す。未指定のキーは変更しない。
+   */
+  applyKRateParams(p = {}) {
+    let reedCoeffsDirty = false;
+    let bellDirty = false;
+    if (p.zeta !== undefined) this.zeta = p.zeta;
+    if (p.reedFreq !== undefined && p.reedFreq !== this.reedFreq) {
+      this.reedFreq = p.reedFreq;
+      reedCoeffsDirty = true;
+    }
+    if (p.reedQ !== undefined && p.reedQ !== this.reedQ) {
+      this.reedQ = p.reedQ;
+      reedCoeffsDirty = true;
+    }
+    if (p.contactQ !== undefined && p.contactQ !== this.contactQ) {
+      this.contactQ = p.contactQ;
+      reedCoeffsDirty = true;
+    }
+    if (p.bellCutoff !== undefined && p.bellCutoff !== this.bellCutoff) {
+      this.bellCutoff = p.bellCutoff;
+      bellDirty = true;
+    }
+    if (p.wallLoss !== undefined) this.wallLoss = p.wallLoss;
+    if (p.noise !== undefined) this.noise = p.noise;
+
+    if (reedCoeffsDirty) this._updateReedCoeffs();
+    if (bellDirty) this._updateBellCoeff();
+  }
+
+  /**
+   * オーバーサンプリング係数を実行時に切り替える（§4.6）。
+   * - D_eff/D はレート比で即座に再導出する（グライドさせない。R52）
+   * - リード状態 (s1,s2) はレート不変なので触らない（R47）
+   * - 遅延線は新レートへ線形リサンプルする
+   * - 呼び出し側（worklet）が port 経由で受けたら、この後 out[0] を5msフェードする
+   */
+  setOversample(newFactor) {
+    if (newFactor === this.oversample) return;
+    const oldFs = this.fsInternal;
+    const newFs = this.baseFs * newFactor;
+    const ratio = newFs / oldFs;
+
+    this.D_eff *= ratio;
+    this.D *= ratio;
+
+    this.pPlusBuf = this._resampleCircular(this.pPlusBuf, ratio);
+    this.pMinusBuf = this._resampleCircular(this.pMinusBuf, ratio);
+    this.pos = 0;
+
+    this.oversample = newFactor;
+    this.fsInternal = newFs;
+    this._updateReedCoeffs();
+    this._updateBellCoeff();
+    this.dcBlockR = 1 - (2 * Math.PI * 20) / this.fsInternal;
+
+    const stages = Math.round(Math.log2(newFactor));
+    if (2 ** stages !== newFactor) {
+      throw new Error(`oversample は 2 のべき乗のみ対応: ${newFactor}`);
+    }
+    this._out0Dec = Array.from({ length: stages }, () => new HalfbandDecimator());
+    this._out1Dec = Array.from({ length: stages }, () => new HalfbandDecimator());
+
+    // 呼び出し側の 5ms フェードと合わせて使う（§4.6）
+    this._fadeTotal = Math.max(1, Math.round(0.005 * this.fsInternal));
+    this._fadeRemaining = this._fadeTotal;
+  }
+
+  /** 循環バッファの中身を新レートへ線形リサンプルし、pos=0 の新バッファを返す。 */
+  _resampleCircular(buf, ratio) {
+    const n = buf.length;
+    // 「最新（pos-1）を age=0」とする unrolled 配列（古い順ではなく新しい順）
+    const unrolled = new Float64Array(n);
+    for (let k = 0; k < n; k++) {
+      unrolled[k] = buf[(this.pos - 1 - k + n * 4) % n];
+    }
+    const out = new Float64Array(n);
+    for (let k = 0; k < n; k++) {
+      const srcAge = k / ratio;
+      out[(n - 1 - k) % n] = interpRead(unrolled, srcAge);
+    }
+    return out;
+  }
+
   /** リード状態を1サンプル進める（§4.1）。前サンプルの x で開放/接触を選択。 */
   _stepReed(u) {
     const coeff = this.x < 0 ? this._coeffContact : this._coeffOpen;
@@ -357,7 +443,98 @@ export class ReedTubeModel {
 
 if (typeof registerProcessor !== 'undefined') {
   class ReedTubeProcessor extends AudioWorkletProcessor {
-    // worklet 配線は手順2 で実装する。
+    static get parameterDescriptors() {
+      return [
+        // a-rate（§3: k-rate だと2.67msの階段でクリック源になるため）
+        { name: 'gamma', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'a-rate' },
+        { name: 'gate', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'a-rate' },
+        { name: 'tubeLength', defaultValue: 0.6, minValue: 0.15, maxValue: 1.2, automationRate: 'a-rate' },
+        // k-rate（§5）
+        { name: 'zeta', defaultValue: 0.25, minValue: 0.05, maxValue: 0.8, automationRate: 'k-rate' },
+        { name: 'reedFreq', defaultValue: 2200, minValue: 300, maxValue: 5000, automationRate: 'k-rate' },
+        { name: 'reedQ', defaultValue: 3, minValue: 0.5, maxValue: 20, automationRate: 'k-rate' },
+        { name: 'contactQ', defaultValue: 4, minValue: 1, maxValue: 20, automationRate: 'k-rate' },
+        { name: 'bellCutoff', defaultValue: 1500, minValue: 200, maxValue: 5000, automationRate: 'k-rate' },
+        { name: 'wallLoss', defaultValue: 0.995, minValue: 0.9, maxValue: 1.0, automationRate: 'k-rate' },
+        { name: 'noise', defaultValue: 0.008, minValue: 0, maxValue: 0.05, automationRate: 'k-rate' },
+      ];
+    }
+
+    constructor() {
+      super();
+      this._model = new ReedTubeModel({ fsInternal: sampleRate });
+      // §7: performance.now() が AudioWorkletGlobalScope で使えるか、初回に1度だけ確認する
+      this._perfAvailable = (() => {
+        try {
+          return typeof performance !== 'undefined' && typeof performance.now === 'function';
+        } catch {
+          return false;
+        }
+      })();
+      this._cpuEma = 0;
+      this._snapshotAccum = 0;
+      this._snapshotIntervalSamples = Math.round(sampleRate / 30); // 約30Hz
+
+      this.port.onmessage = (event) => {
+        const msg = event.data;
+        if (msg && msg.type === 'setOversample') {
+          this._model.setOversample(msg.factor);
+        }
+      };
+    }
+
+    process(inputs, outputs, parameters) {
+      const out0 = outputs[0][0];
+      const out1 = outputs[1] && outputs[1][0];
+      const blockLen = out0.length;
+
+      const t0 = this._perfAvailable ? performance.now() : 0;
+
+      this._model.applyKRateParams({
+        zeta: parameters.zeta[0],
+        reedFreq: parameters.reedFreq[0],
+        reedQ: parameters.reedQ[0],
+        contactQ: parameters.contactQ[0],
+        bellCutoff: parameters.bellCutoff[0],
+        wallLoss: parameters.wallLoss[0],
+        noise: parameters.noise[0],
+      });
+
+      const result = this._model.process(blockLen, {
+        gamma: parameters.gamma,
+        gate: parameters.gate,
+        tubeLength: parameters.tubeLength,
+      });
+
+      out0.set(result.out0);
+      if (out1) out1.set(result.out1);
+
+      if (this._perfAvailable) {
+        const elapsedMs = performance.now() - t0;
+        const blockMs = (blockLen / sampleRate) * 1000;
+        const load = elapsedMs / blockMs;
+        this._cpuEma = this._cpuEma * 0.9 + load * 0.1;
+      }
+
+      if (result.diverged) {
+        this.port.postMessage({ type: 'diverged' });
+      }
+
+      this._snapshotAccum += blockLen;
+      if (this._snapshotAccum >= this._snapshotIntervalSamples) {
+        this._snapshotAccum = 0;
+        // 最小限のスナップショット（cpu 表示・レート確認用）。
+        // 可視化用の波形配列（x, xd, dp, u, pPlus, pMinus）は手順5 で追加する。
+        this.port.postMessage({
+          type: 'snapshot',
+          fsInternal: this._model.fsInternal,
+          cpu: this._cpuEma,
+          perfAvailable: this._perfAvailable,
+        });
+      }
+
+      return true;
+    }
   }
   registerProcessor('reed-tube', ReedTubeProcessor);
 }

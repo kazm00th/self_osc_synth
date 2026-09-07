@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>self_osc_synth — リード＋導波路シンセ</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #14171c;
+    color: #e6e6e6;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 16px; }
+  #warning {
+    background: #5a1f1f;
+    color: #ffd0d0;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+  }
+  button {
+    font-size: 1rem;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #2a2f3a;
+    color: #e6e6e6;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #status {
+    margin-top: 16px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #9ad;
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+  <h1>self_osc_synth（手順2: 固定パラメータで音が出る）</h1>
+  <div id="warning" hidden></div>
+  <button id="startBtn">開始（クリックで AudioContext 起動）</button>
+  <button id="noteBtn" disabled>テスト音（ノートオン/オフ）</button>
+  <pre id="status">（未起動）</pre>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

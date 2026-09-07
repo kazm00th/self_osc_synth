@@ -49,8 +49,8 @@ tests/
 ## 実装状況
 
 - [x] 手順0: `serve.py` / `README.md`
-- [x] 手順1: `ReedTubeModel` + `tests/model.test.js`（テスト1–11, 14–24, 28, 29, 31 全25本green）
-- [ ] 手順2: `index.html` + `main.js` + worklet 配線
+- [x] 手順1: `ReedTubeModel` + `tests/model.test.js`（テスト1–11, 14–24, 28, 29, 31 + 30 全27本green）
+- [x] 手順2: `index.html` + `main.js` + worklet 配線（実機（Chrome）で音声パス確認済み）
 - [ ] 手順3: `params.js` + `ui.js`
 - [ ] 手順4: `midi.js` + `pitch.js`
 - [ ] 手順5: `scope.js`
