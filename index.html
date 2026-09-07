@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>self_osc_synth — リード＋導波路シンセ</title>
+<title>self_osc_synth — リード＋導波路シンセ（開発中）</title>
 <style>
   body {
     font-family: system-ui, sans-serif;
@@ -37,14 +37,39 @@
     color: #9ad;
     white-space: pre-wrap;
   }
+  #controls {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  fieldset.param-group {
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px 14px;
+    min-width: 260px;
+  }
+  fieldset.param-group legend { color: #9ad; padding: 0 6px; }
+  .param-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr auto;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 0.85rem;
+  }
+  .param-row label { color: #ccc; }
+  .param-value { font-family: monospace; color: #9ad; text-align: right; min-width: 5em; }
+  input[type="range"] { width: 100%; }
 </style>
 </head>
 <body>
-  <h1>self_osc_synth（手順2: 固定パラメータで音が出る）</h1>
+  <h1>self_osc_synth（手順3: params.js + ui.js — スライダー）</h1>
   <div id="warning" hidden></div>
   <button id="startBtn">開始（クリックで AudioContext 起動）</button>
   <button id="noteBtn" disabled>テスト音（ノートオン/オフ）</button>
   <pre id="status">（未起動）</pre>
+  <div id="controls"></div>
 
   <script type="module" src="src/main.js"></script>
 </body>

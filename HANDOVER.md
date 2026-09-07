@@ -22,7 +22,7 @@
 |---|---|
 | 設計書 | 完了（818行、3回のレビューを反映済み。手順1 実装で判明した知見を §9 テスト7 に注記追加） |
 | レビュー | 3回。指摘 **R1–R63（63件）+ テスト漏れ T1–T13（13件）、全件反映済み** |
-| コード | **手順0-2 完了**。`serve.py`, `README.md`, `worklet/reed-tube-processor.js`（`ReedTubeModel` + `ReedTubeProcessor`）, `tests/model.test.js`, `index.html`, `src/main.js`。テスト1–11, 14–24, 28, 29, 30, 31 の**27本 all green**（`node --test`）。実機（Chrome、`preview_start`経由）でAudioWorklet音声パスを確認済み。`src/params.js`/`ui.js`/`midi.js`/`pitch.js`/`scope.js`は未着手 |
+| コード | **手順0-3 完了**。`serve.py`, `README.md`, `worklet/reed-tube-processor.js`（`ReedTubeModel` + `ReedTubeProcessor`）, `tests/model.test.js`, `index.html`, `src/main.js`, `src/params.js`, `src/ui.js`。テスト1–11, 14–24, 28, 29, 30, 31 の**27本 all green**（`node --test`）。実機（Chrome）でAudioWorklet音声パス・スライダー（tubeLength/oversample切替）を確認済み。`src/midi.js`/`pitch.js`/`scope.js`は未着手 |
 | git | ローカルのみ。**リモート無し・push 無し**。作業ツリーはクリーン |
 
 手順1 実装で判明した知見（設計書に注記済み）: 既定パラメータでも短管
@@ -130,10 +130,11 @@ cmd /c "call D:\Users\usor\miniconda3\condabin\conda.bat activate myenv311 && cd
 
 ## 7. これからの進め方（案）
 
-### 手順0–2 は完了。次は手順3（`params.js` + `ui.js` — スライダー）
+### 手順0–3 は完了。次は手順4（`midi.js` + `pitch.js` — MIDI・γ写像・f0推定）
 
-3回のレビューで 76 件を潰し、手順0–2（`serve.py` + DSP コア + テスト + worklet 配線）を
-実装済み（テスト1–11, 14–24, 28, 29, 30, 31 の27本 all green。実機で音声パス確認済み）。
+3回のレビューで 76 件を潰し、手順0–3（`serve.py` + DSP コア + テスト + worklet 配線 +
+スライダー）を実装済み（テスト1–11, 14–24, 28, 29, 30, 31 の27本 all green。実機で
+音声パス・スライダー操作を確認済み）。
 `performance.now()` は AudioWorkletGlobalScope で使えないと判明したので、CPU 負荷表示は
 `AudioContext.renderCapacity`（Chrome 112+）か main 側推定に倒す必要がある（手順3以降で対応）。
 残る未確定（γ 閾値・CPU 実測値そのもの）は**紙の上では決まらない**ので手順6 の実測を待つ。

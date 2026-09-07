@@ -1,5 +1,21 @@
 // 起動・AudioContext・worklet ロード・配線（2出力 + AnalyserNode）。
-// 手順2: 固定パラメータで音が出ることを目標にする。スライダー等は手順3以降。
+// 手順3: params.js のスライダーで AudioParam / oversample を操作できるようにする。
+// MIDI 配線は手順4。
+
+import { manualParams } from './params.js';
+import {
+  buildParamSliders,
+  buildEnvelopeControls,
+  buildOversampleControl,
+  buildExpressionSourceControl,
+} from './ui.js';
+
+const paramRateById = new Map(manualParams().map((p) => [p.id, p.rate]));
+const controlsEl = document.getElementById('controls');
+
+// MIDI 配線（手順4）が使う envelope/expressionSource の現在値。今は保持するだけ。
+const envelope = { attack: 20, release: 80 };
+let expressionSource = 'none';
 
 const warningEl = document.getElementById('warning');
 const startBtn = document.getElementById('startBtn');
@@ -64,12 +80,37 @@ async function start() {
     }
   };
 
+  buildParamSliders(controlsEl, (id, value) => {
+    const param = workletNode.parameters.get(id);
+    const rate = paramRateById.get(id);
+    const now = audioCtx.currentTime;
+    if (rate === 'a-rate') {
+      // tubeLength は worklet 内部で τ_D=15ms グライドするので即値でよい（§4.5）
+      param.setValueAtTime(value, now);
+    } else {
+      // k-rate: ジッパーノイズを避けるため短い時定数で滑らかに
+      param.setTargetAtTime(value, now, 0.01);
+    }
+  });
+
+  buildEnvelopeControls(controlsEl, (id, ms) => {
+    envelope[id] = ms;
+  });
+
+  buildOversampleControl(controlsEl, (factor) => {
+    workletNode.port.postMessage({ type: 'setOversample', factor });
+  });
+
+  buildExpressionSourceControl(controlsEl, (id) => {
+    expressionSource = id;
+  });
+
   startBtn.disabled = true;
   noteBtn.disabled = false;
   setStatus('起動しました。');
 
   // デバッグ用（開発時のコンソール確認・自動テスト用）
-  window.__debug = { audioCtx, workletNode, analyser };
+  window.__debug = { audioCtx, workletNode, analyser, envelope, get expressionSource() { return expressionSource; } };
 }
 
 // 固定パラメータでのノートオン/オフ（手順2 の動作確認用。実際の MIDI 配線は手順4）
@@ -79,10 +120,9 @@ function toggleNote() {
   const now = audioCtx.currentTime;
   const gammaParam = workletNode.parameters.get('gamma');
   const gateParam = workletNode.parameters.get('gate');
-  const tubeLengthParam = workletNode.parameters.get('tubeLength');
 
   if (!noteOn) {
-    tubeLengthParam.setValueAtTime(0.6, now); // A2 相当（f0 ≈ 143Hz）
+    // tubeLength はスライダー（既定 0.6m）に任せる
     gammaParam.setTargetAtTime(0.5, now, 20 / 3000);
     gateParam.setTargetAtTime(1.0, now, 20 / 3000); // attack 20ms
     noteBtn.textContent = 'テスト音（ノートオフ）';
