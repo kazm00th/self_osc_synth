@@ -140,7 +140,10 @@ export const ATTACK_PARAM = { id: 'attack', label: 'アタック', min: 1, max: 
 export const RELEASE_PARAM = { id: 'release', label: 'リリース', min: 1, max: 1000, default: 80, unit: 'ms' };
 
 export const OVERSAMPLE_OPTIONS = [1, 2];
-export const OVERSAMPLE_DEFAULT = 1; // 暫定。手順6のCPU実測で確定する（§4.6, HANDOVER §6）
+// 手順6のCPU実測で確定（HANDOVER §6）: 1x=実時間の0.3%、2x=1.3%相当と、
+// どちらも計算コストは軽くユーザーの聴感でも差が分からなかった。
+// コストが軽いのでエイリアシング低減のメリットがある2xを既定にする。
+export const OVERSAMPLE_DEFAULT = 2;
 
 export const EXPRESSION_SOURCES = [
   { id: 'breath', label: 'ブレス (CC2)' },

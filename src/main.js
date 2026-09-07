@@ -1,12 +1,20 @@
 // 起動・AudioContext・worklet ロード・配線（2出力 + AnalyserNode）。
 // 手順4: MIDI / QWERTY 配線、裏返りインジケータ（f0 推定）。
 
-import { manualParams, GAMMA_BASE_MIN, GAMMA_BASE_MAX, GAMMA_CEILING, C_SOUND } from './params.js';
+import {
+  manualParams,
+  GAMMA_BASE_MIN,
+  GAMMA_BASE_MAX,
+  GAMMA_CEILING,
+  C_SOUND,
+  OVERSAMPLE_DEFAULT,
+} from './params.js';
 import {
   buildParamSliders,
   buildEnvelopeControls,
   buildOversampleControl,
   buildExpressionSourceControl,
+  buildVirtualWheelControls,
 } from './ui.js';
 import { createMidiController, connectWebMidi, attachQwertyFallback } from './midi.js';
 import { estimateF0 } from './pitch.js';
@@ -82,6 +90,11 @@ async function start() {
   analyser.fftSize = 2048; // R60: 最短管 71.5Hz の自己相関に必要な最小長
   workletNode.connect(analyser, 1);
 
+  // oversample 既定値を worklet 側にも反映する（既定 2x。HANDOVER §6）
+  if (OVERSAMPLE_DEFAULT !== 1) {
+    workletNode.port.postMessage({ type: 'setOversample', factor: OVERSAMPLE_DEFAULT });
+  }
+
   workletNode.port.onmessage = (event) => {
     const msg = event.data;
     if (msg.type === 'snapshot') {
@@ -122,6 +135,12 @@ async function start() {
 
   buildExpressionSourceControl(controlsEl, (id) => {
     midiController.setExpressionSource(id);
+  });
+
+  // 仮想ホイール（CC1/CC2相当）。QWERTY代替演奏時など物理コントローラが
+  // ない場合でも表現ソース経由でγを操作できるようにする。
+  buildVirtualWheelControls(controlsEl, (ccNumber, value) => {
+    midiController.setExpressionCC(ccNumber, value);
   });
 
   midiController = createMidiController(workletNode, audioCtx, {

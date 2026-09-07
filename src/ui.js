@@ -131,3 +131,28 @@ export function buildExpressionSourceControl(container, onChange) {
   container.appendChild(row);
   return select;
 }
+
+/**
+ * 仮想ホイール（CC1=モジュレーション相当 / CC2=ブレス相当）。QWERTY代替演奏など
+ * 物理コントローラがない場合でも、表現ソースと組み合わせて γ を操作できるようにする。
+ * 値は 0-127（MIDI CC と同じレンジ）で、変更のたびに (ccNumber, value) を渡す。
+ * @param {HTMLElement} container
+ * @param {(ccNumber: number, value: number) => void} onChange
+ */
+export function buildVirtualWheelControls(container, onChange) {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'param-group';
+  const legend = document.createElement('legend');
+  legend.textContent = '仮想ホイール（QWERTY代替演奏用）';
+  fieldset.appendChild(legend);
+
+  const wheels = [
+    { ccNumber: 1, label: 'モジュレーション相当 (CC1)' },
+    { ccNumber: 2, label: 'ブレス相当 (CC2)' },
+  ];
+  for (const { ccNumber, label } of wheels) {
+    const p = { id: `virtualCC${ccNumber}`, label, min: 0, max: 127, default: 0, step: 1 };
+    fieldset.appendChild(makeSliderRow(p, (_id, v) => onChange(ccNumber, v)));
+  }
+  container.appendChild(fieldset);
+}
