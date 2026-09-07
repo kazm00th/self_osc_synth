@@ -5,7 +5,7 @@
 ## 0. 一行で
 
 **シングルリード（クラリネット）の自励振動 + 円筒管デジタル導波路の、
-ブラウザ実時間 MIDI 楽器。設計は完了、コードは1行も書いていない。**
+ブラウザ実時間 MIDI 楽器。設計・実装・手順6の実測/手動確認まで完了。**
 
 ## 1. 読む順番
 
@@ -22,7 +22,7 @@
 |---|---|
 | 設計書 | 完了（818行、3回のレビューを反映済み。手順1 実装で判明した知見を §9 テスト7 に注記追加） |
 | レビュー | 3回。指摘 **R1–R63（63件）+ テスト漏れ T1–T13（13件）、全件反映済み** |
-| コード | **手順0-5 完了**。上記に加え `src/scope.js`（combineStandingWave + 4パネル描画関数）。`ReedTubeModel.getSnapshot()`（x/xd/dp/u 1024リングバッファ + pPlus/pMinus 256固定長）を追加し worklet が約30Hzでフル snapshot を送出。テスト1–11, 14–32 の**38本 all green**。実機で4パネル（全て非背景ピクセルを描画）・oversample切替後も継続動作を確認済み。手順3以降のindex.html見出しは各手順で更新している |
+| コード | **手順0-6 完了**。`src/scope.js`（combineStandingWave + 4パネル描画関数）、`ReedTubeModel.getSnapshot()`、仮想ホイール(CC1/CC2相当)、oversample既定2x。テストは`node --test` **42本 all green**。実機（kazm00th）で自動測定困難な項目（MIDIレイテンシ・和音・スクイーク音質・レガート・アタック過渡・不要なワーブル）を全て確認済み |
 | git | ローカルのみ。**リモート無し・push 無し**。作業ツリーはクリーン |
 
 手順1 実装で判明した知見（設計書に注記済み）: 既定パラメータでも短管
@@ -177,17 +177,30 @@ wallLoss=0.90（下限）  : γ_th_osc ≈ 0.411
 `γ_base_min` を既定より高くするか、`wallLoss` の下限をさらに下げれば
 「発音しなくなる」設計は作れるが、現状ではそうなっていない。
 
-## 7. これからの進め方（案）
+## 7. 手順0–6 は全て完了
 
-### 手順0–5 は完了。次は手順6（実測による定数確定）
+3回のレビューで 76 件を潰し、手順0–6（`serve.py` + DSP コア + テスト + worklet 配線 +
+スライダー + MIDI/QWERTY + f0推定 + 4パネル可視化 + 実測/手動確認）を実装・検証済み。
+`node --test` 42本 all green。
 
-3回のレビューで 76 件を潰し、手順0–5（`serve.py` + DSP コア + テスト + worklet 配線 +
-スライダー + MIDI/QWERTY + f0推定 + 4パネル可視化）を実装済み（テスト1–11, 14–32 の
-38本 all green。実機で4パネル描画・oversample切替後の継続動作を確認済み）。
-残るのは §10 手順6 の実測（発振閾値・跳躍閾値・CPU）のみ。
-`performance.now()` は AudioWorkletGlobalScope で使えないと判明したので、CPU 負荷表示は
-`AudioContext.renderCapacity`（Chrome 112+）か main 側推定に倒す必要がある（手順3以降で対応）。
-残る未確定（γ 閾値・CPU 実測値そのもの）は**紙の上では決まらない**ので手順6 の実測を待つ。
+### 手順6（実測・手動確認）の結果まとめ
+
+自動測定（Claude、§6参照）:
+- `γ_th_osc ≈ 0.324`、`γ_base_min/max=0.40/0.60` は変更不要
+- `performance.now()` は AudioWorkletGlobalScope で使えない（`perfAvailable=false`）。
+  CPU 負荷表示は `AudioContext.renderCapacity` か main 側推定へ切替が必要（**未実装のまま**、
+  現状は `perfAvailable=false` を表示するだけ）
+- CPU コスト（Node上の近似）: 1x=0.3%、2x=1.3%相当。実測の結果 oversample 既定値は **2x** に設定
+- 12度の裏返りは `reedFreq`+`reedQ` の組み合わせで達成可能と判明（§6訂正参照）
+
+実機確認（kazm00th）: MIDIレイテンシOK、和音時の後着優先挙動OK、
+スクイークの音質・引き込まれ方OK、レガートのクリックなし接続OK、
+不要なスクイーク・ワーブルなしOK、アタック過渡（チフ音）の自然さOK。
+`wallLoss` 下限での無音化は期待通りにならないと判明（§6訂正、設計書側の想定誤り）。
+`devicePixelRatio` 高環境（Retina等）は未確認のまま（該当環境がないため）。
+
+**残作業**: `AudioContext.renderCapacity` によるCPU表示の実装（任意、現状 `perfAvailable=false`
+の表示のみで実用上支障はない）。それ以外に既知の未完了項目はない。
 
 ### 手順（設計書 §10 と同じ。ここでは着手前に決めることを再掲）
 

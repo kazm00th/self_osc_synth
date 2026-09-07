@@ -54,7 +54,7 @@ tests/
 - [x] 手順3: `params.js` + `ui.js`（実機でtubeLength/oversample操作を確認済み）
 - [x] 手順4: `midi.js` + `pitch.js`（テスト25–27全green、実機でQWERTY演奏・f0推定を確認済み）
 - [x] 手順5: `scope.js`（テスト32全green、実機で4パネル描画を確認済み）
-- [ ] 手順6: 実測による定数確定
+- [x] 手順6: 実測・手動確認完了（詳細はHANDOVER.md §7）
 
 未確定の定数・パラメータは
 [`HANDOVER.md`](./HANDOVER.md) 6節を参照。
