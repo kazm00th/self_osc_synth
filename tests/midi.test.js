@@ -142,3 +142,47 @@ test('createMidiController: モジュレーションモードでCCを送って�
     `velocity由来のgammaBaseが失われている: g=${g} expected=${expectedGammaBase}`
   );
 });
+
+test('createMidiController: ブレスモードは velocity に関係なく CC2 の値がそのまま反映される', () => {
+  const workletNode = makeFakeWorkletNode();
+  const audioCtx = makeFakeAudioCtx();
+  const controller = createMidiController(workletNode, audioCtx, {
+    getEnvelope: () => ({ attackMs: 20, releaseMs: 80 }),
+    gammaConstants: makeGammaConstants(),
+  });
+
+  controller.setExpressionSource('breath');
+  controller.noteOn(60, 1); // velocity01 は breath では無視されるはず（最小ベロシティで弾く）
+
+  controller.setExpressionCC(2, 64); // CC2（ブレス）
+  const g1 = workletNode.parameters.get('gamma').value;
+  const expected1 = (64 / 127) * GAMMA_CEILING;
+  assert.ok(Math.abs(g1 - expected1) < 1e-9, `g1=${g1} expected=${expected1}`);
+
+  // 別ノートを最大velocityで弾き直しても、breathではvelocityの影響を受けない
+  controller.noteOff(60);
+  controller.noteOn(62, 127);
+  controller.setExpressionCC(2, 64); // 同じCC値
+  const g2 = workletNode.parameters.get('gamma').value;
+  assert.ok(Math.abs(g2 - expected1) < 1e-9, `velocityの影響を受けてしまっている: g2=${g2}`);
+});
+
+test('createMidiController: CC1/CC2 のクロス混入がない（modulation中のCC2、breath中のCC1は無視）', () => {
+  const workletNode = makeFakeWorkletNode();
+  const audioCtx = makeFakeAudioCtx();
+  const controller = createMidiController(workletNode, audioCtx, {
+    getEnvelope: () => ({ attackMs: 20, releaseMs: 80 }),
+    gammaConstants: makeGammaConstants(),
+  });
+
+  controller.setExpressionSource('modulation');
+  controller.noteOn(60, 100);
+  const gBefore = workletNode.parameters.get('gamma').value;
+  controller.setExpressionCC(2, 100); // CC2はmodulationモードでは無関係のはず
+  assert.equal(workletNode.parameters.get('gamma').value, gBefore, 'modulation中にCC2で変化してしまった');
+
+  controller.setExpressionSource('breath');
+  const gBefore2 = workletNode.parameters.get('gamma').value;
+  controller.setExpressionCC(1, 100); // CC1はbreathモードでは無関係のはず
+  assert.equal(workletNode.parameters.get('gamma').value, gBefore2, 'breath中にCC1で変化してしまった');
+});
