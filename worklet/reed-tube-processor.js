@@ -177,6 +177,22 @@ export class ReedTubeModel {
     }
     this.D_eff = this.D;
 
+    // 可視化用スナップショット（§7）。audio thread では一切アロケートしない
+    // 方針に合わせ、コンストラクタで確保したリングバッファを使い回す。
+    const SNAP_LEN = 1024;
+    this._snapX = new Float32Array(SNAP_LEN);
+    this._snapXd = new Float32Array(SNAP_LEN);
+    this._snapDp = new Float32Array(SNAP_LEN);
+    this._snapU = new Float32Array(SNAP_LEN);
+    this._snapPos = 0;
+    this._snapPPlusOut = new Float32Array(256);
+    this._snapPMinusOut = new Float32Array(256);
+    // getSnapshot() の戻り値用（audio thread では一切アロケートしない方針。§3）
+    this._snapXOut = new Float32Array(SNAP_LEN);
+    this._snapXdOut = new Float32Array(SNAP_LEN);
+    this._snapDpOut = new Float32Array(SNAP_LEN);
+    this._snapUOut = new Float32Array(SNAP_LEN);
+
     this._updateReedCoeffs();
     this._updateBellCoeff();
   }
@@ -195,6 +211,40 @@ export class ReedTubeModel {
 
   static halfbandCoeffs() {
     return HB_COEFFS;
+  }
+
+  /**
+   * 可視化用スナップショットを返す（§7）。x/xd/dp/u は直近1024サンプル
+   * （古い順に並べ替え済み）、pPlus/pMinus は256固定長で先頭 nTube 要素のみ有効。
+   * `nTube = min(floor(D_eff), 256)`（R58: 丸めは floor）。
+   * pPlus[0]/pMinus[0] がそれぞれリード端寄り/ベル端寄り（§7, R53）。
+   */
+  getSnapshot() {
+    const len = this._snapX.length;
+    const x = this._snapXOut;
+    const xd = this._snapXdOut;
+    const dp = this._snapDpOut;
+    const u = this._snapUOut;
+    for (let k = 0; k < len; k++) {
+      const idx = (this._snapPos + k) % len; // 古い順
+      x[k] = this._snapX[idx];
+      xd[k] = this._snapXd[idx];
+      dp[k] = this._snapDp[idx];
+      u[k] = this._snapU[idx];
+    }
+
+    const nTube = Math.min(Math.floor(this.D_eff), 256);
+    const bufN = this.pPlusBuf.length;
+    const pPlus = this._snapPPlusOut;
+    const pMinus = this._snapPMinusOut;
+    pPlus.fill(0);
+    pMinus.fill(0);
+    for (let z = 0; z < nTube; z++) {
+      pPlus[z] = this.pPlusBuf[(this.pos - 1 - z + bufN * 4) % bufN];
+      pMinus[z] = this.pMinusBuf[(this.pos - 1 - z + bufN * 4) % bufN];
+    }
+
+    return { fsInternal: this.fsInternal, nTube, x, xd, dp, u, pPlus, pMinus };
   }
 
   _updateReedCoeffs() {
@@ -382,6 +432,13 @@ export class ReedTubeModel {
       const dp = gamma - pTilde;
       this._stepReed(1 - dp);
 
+      // 可視化用リングバッファへ記録（§7 パネル1・2）
+      this._snapX[this._snapPos] = this.x;
+      this._snapXd[this._snapPos] = this.xd;
+      this._snapDp[this._snapPos] = dp;
+      this._snapU[this._snapPos] = u;
+      this._snapPos = (this._snapPos + 1) % this._snapX.length;
+
       // 手順8: ベル端
       const bellIn = this._interpRead(this.pPlusBuf, this.pos - D);
       const rOut = this._bellA * this.bellFilterState - (1 - this._bellA) * bellIn;
@@ -523,11 +580,20 @@ if (typeof registerProcessor !== 'undefined') {
       this._snapshotAccum += blockLen;
       if (this._snapshotAccum >= this._snapshotIntervalSamples) {
         this._snapshotAccum = 0;
-        // 最小限のスナップショット（cpu 表示・レート確認用）。
-        // 可視化用の波形配列（x, xd, dp, u, pPlus, pMinus）は手順5 で追加する。
+        const snap = this._model.getSnapshot();
+        // structured clone で main 側へコピーされる（audio thread 側の再利用
+        // バッファ自体は次の process() でまた上書きされるが、postMessage は
+        // 呼び出し時点で同期的に複製するので問題ない。§3）
         this.port.postMessage({
           type: 'snapshot',
-          fsInternal: this._model.fsInternal,
+          fsInternal: snap.fsInternal,
+          nTube: snap.nTube,
+          x: snap.x,
+          xd: snap.xd,
+          dp: snap.dp,
+          u: snap.u,
+          pPlus: snap.pPlus,
+          pMinus: snap.pMinus,
           cpu: this._cpuEma,
           perfAvailable: this._perfAvailable,
         });

@@ -659,6 +659,37 @@ test('test30: 2× 切替後のループ遅延 — フェード明け+グライ�
   assert.ok(relErr < 0.01, `f0Before=${f0Before} f0After=${f0After} relErr=${relErr}`);
 });
 
+// ---- 手順5: 可視化スナップショット ----
+
+test('getSnapshot: x/xd/dp/u を1024サンプルのリングバッファとして返す', () => {
+  const m = new ReedTubeModel({ tubeLength: 0.6, seed: 81 });
+  m.process(2000, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+
+  const snap = m.getSnapshot();
+  assert.equal(snap.x.length, 1024);
+  assert.equal(snap.xd.length, 1024);
+  assert.equal(snap.dp.length, 1024);
+  assert.equal(snap.u.length, 1024);
+  // 全部ゼロではない（実際に振動データが入っている）
+  assert.ok(snap.x.some((v) => v !== 0));
+  assert.equal(snap.fsInternal, 48000);
+});
+
+test('getSnapshot: pPlus/pMinus は256固定長、nTube=min(floor(D_eff),256)', () => {
+  const m = new ReedTubeModel({ delaySamples: 84, seed: 82, zeta: 0 });
+  m.process(500, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+  const snap = m.getSnapshot();
+  assert.equal(snap.pPlus.length, 256);
+  assert.equal(snap.pMinus.length, 256);
+  assert.equal(snap.nTube, 84);
+
+  // D_eff が256を超える場合はクランプされる
+  const m2 = new ReedTubeModel({ delaySamples: 300, seed: 83 });
+  m2.process(500, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });
+  const snap2 = m2.getSnapshot();
+  assert.equal(snap2.nTube, 256);
+});
+
 test('test31: 非有限ガードが同じブロック内で効く', () => {
   const m = new ReedTubeModel({ tubeLength: 0.6, seed: 51 });
   m.process(1000, { gamma: makeConstArr(0.5), gate: makeConstArr(1) });

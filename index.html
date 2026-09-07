@@ -67,17 +67,53 @@
     font-size: 0.85rem;
     color: #cc9;
   }
+  #main-layout {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    align-items: flex-start;
+  }
+  #controls { margin-top: 0; flex: 0 0 auto; }
+  #scopes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .scope-panel { display: flex; flex-direction: column; gap: 2px; }
+  .scope-panel span { font-size: 0.75rem; color: #789; }
+  canvas.scope { background: #0c0e12; border: 1px solid #333; border-radius: 4px; }
 </style>
 </head>
 <body>
-  <h1>self_osc_synth（手順4: midi.js + pitch.js — MIDI・QWERTY・裏返りインジケータ）</h1>
+  <h1>self_osc_synth（手順5: scope.js — 4パネル可視化）</h1>
   <div id="warning" hidden></div>
   <button id="startBtn">開始（クリックで AudioContext 起動）</button>
   <button id="noteBtn" disabled>テスト音（ノートオン/オフ）</button>
   <pre id="status">（未起動）</pre>
   <div id="noteStatus">（未演奏。QWERTY: z s x d c v g b h n j m ... で演奏可）</div>
   <div id="pitchIndicator"></div>
-  <div id="controls"></div>
+
+  <div id="main-layout">
+    <div id="controls"></div>
+    <div id="scopes">
+      <div class="scope-panel">
+        <span>1. リード相図 (x, x')</span>
+        <canvas id="panel1" class="scope" width="380" height="260"></canvas>
+      </div>
+      <div class="scope-panel">
+        <span>2. 非線形特性 + 動作点</span>
+        <canvas id="panel2" class="scope" width="380" height="260"></canvas>
+      </div>
+      <div class="scope-panel">
+        <span>3. 管内の定在波</span>
+        <canvas id="panel3" class="scope" width="380" height="260"></canvas>
+      </div>
+      <div class="scope-panel">
+        <span>4. 波形 / スペクトル</span>
+        <canvas id="panel4" class="scope" width="380" height="260"></canvas>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="src/main.js"></script>
 </body>

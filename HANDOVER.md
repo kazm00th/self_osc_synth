@@ -22,7 +22,7 @@
 |---|---|
 | 設計書 | 完了（818行、3回のレビューを反映済み。手順1 実装で判明した知見を §9 テスト7 に注記追加） |
 | レビュー | 3回。指摘 **R1–R63（63件）+ テスト漏れ T1–T13（13件）、全件反映済み** |
-| コード | **手順0-4 完了**。上記に加え `src/midi.js`（noteToLength/computeGammaTarget/isNoteOffVelocity + createMidiController/connectWebMidi/attachQwertyFallback）, `src/pitch.js`（estimateF0、正規化自己相関+最初の強いピーク方式）。テスト1–11, 14–31 の**33本 all green**。実機でQWERTY演奏・裏返りインジケータ（f0推定）を確認済み。`src/scope.js`は未着手 |
+| コード | **手順0-5 完了**。上記に加え `src/scope.js`（combineStandingWave + 4パネル描画関数）。`ReedTubeModel.getSnapshot()`（x/xd/dp/u 1024リングバッファ + pPlus/pMinus 256固定長）を追加し worklet が約30Hzでフル snapshot を送出。テスト1–11, 14–32 の**38本 all green**。実機で4パネル（全て非背景ピクセルを描画）・oversample切替後も継続動作を確認済み。手順3以降のindex.html見出しは各手順で更新している |
 | git | ローカルのみ。**リモート無し・push 無し**。作業ツリーはクリーン |
 
 手順1 実装で判明した知見（設計書に注記済み）: 既定パラメータでも短管
@@ -130,11 +130,12 @@ cmd /c "call D:\Users\usor\miniconda3\condabin\conda.bat activate myenv311 && cd
 
 ## 7. これからの進め方（案）
 
-### 手順0–4 は完了。次は手順5（`scope.js` — 4パネル可視化）
+### 手順0–5 は完了。次は手順6（実測による定数確定）
 
-3回のレビューで 76 件を潰し、手順0–4（`serve.py` + DSP コア + テスト + worklet 配線 +
-スライダー + MIDI/QWERTY + f0推定）を実装済み（テスト1–11, 14–31 の33本 all green。
-実機でQWERTY演奏・裏返りインジケータを確認済み）。
+3回のレビューで 76 件を潰し、手順0–5（`serve.py` + DSP コア + テスト + worklet 配線 +
+スライダー + MIDI/QWERTY + f0推定 + 4パネル可視化）を実装済み（テスト1–11, 14–32 の
+38本 all green。実機で4パネル描画・oversample切替後の継続動作を確認済み）。
+残るのは §10 手順6 の実測（発振閾値・跳躍閾値・CPU）のみ。
 `performance.now()` は AudioWorkletGlobalScope で使えないと判明したので、CPU 負荷表示は
 `AudioContext.renderCapacity`（Chrome 112+）か main 側推定に倒す必要がある（手順3以降で対応）。
 残る未確定（γ 閾値・CPU 実測値そのもの）は**紙の上では決まらない**ので手順6 の実測を待つ。

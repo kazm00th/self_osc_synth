@@ -10,6 +10,16 @@ import {
 } from './ui.js';
 import { createMidiController, connectWebMidi, attachQwertyFallback } from './midi.js';
 import { estimateF0 } from './pitch.js';
+import { drawReedPhase, drawNonlinearCharacteristic, drawStandingWave, drawSpectrumAndWaveform } from './scope.js';
+
+const panel1 = document.getElementById('panel1');
+const panel2 = document.getElementById('panel2');
+const panel3 = document.getElementById('panel3');
+const panel4 = document.getElementById('panel4');
+const ctx1 = panel1.getContext('2d');
+const ctx2 = panel2.getContext('2d');
+const ctx3 = panel3.getContext('2d');
+const ctx4 = panel4.getContext('2d');
 
 const paramRateById = new Map(manualParams().map((p) => [p.id, p.rate]));
 const controlsEl = document.getElementById('controls');
@@ -40,6 +50,7 @@ let workletNode = null;
 let analyser = null;
 let midiController = null;
 let currentTubeLength = 0.6; // f0 期待値の計算用（スライダー/ノートで更新）
+let currentZeta = 0.25; // パネル2の準静的特性曲線の描画に使う
 
 async function start() {
   if (audioCtx) return;
@@ -78,6 +89,9 @@ async function start() {
         `fsInternal=${msg.fsInternal} cpu=${(msg.cpu * 100).toFixed(1)}% ` +
           `perfAvailable=${msg.perfAvailable}`
       );
+      drawReedPhase(ctx1, panel1.width, panel1.height, msg);
+      drawNonlinearCharacteristic(ctx2, panel2.width, panel2.height, msg, currentZeta);
+      drawStandingWave(ctx3, panel3.width, panel3.height, msg);
     } else if (msg.type === 'diverged') {
       console.warn('[reed-tube] diverged: 発散ガードが作動しました');
     }
@@ -94,6 +108,7 @@ async function start() {
     } else {
       // k-rate: ジッパーノイズを避けるため短い時定数で滑らかに
       param.setTargetAtTime(value, now, 0.01);
+      if (id === 'zeta') currentZeta = value;
     }
   });
 
@@ -125,7 +140,7 @@ async function start() {
   }
   attachQwertyFallback(midiController, document);
 
-  startPitchIndicator();
+  startVisualLoop();
 
   startBtn.disabled = true;
   noteBtn.disabled = false;
@@ -135,8 +150,8 @@ async function start() {
   window.__debug = { audioCtx, workletNode, analyser, envelope, midiController };
 }
 
-// 裏返りインジケータ（§6）: 管の f0（=c/4L）/ 実際に鳴っている f0 / 比
-function startPitchIndicator() {
+// 裏返りインジケータ（§6: 管の f0（=c/4L）/ 実際に鳴っている f0 / 比）+ パネル4（30fps 目安）
+function startVisualLoop() {
   const buf = new Float32Array(analyser.fftSize);
   function tick() {
     if (analyser) {
@@ -145,6 +160,7 @@ function startPitchIndicator() {
       const expected = C_SOUND / (4 * currentTubeLength);
       const ratio = measured / expected;
       pitchIndicatorEl.textContent = `管f0=${expected.toFixed(1)}Hz 実f0=${measured.toFixed(1)}Hz 比=${ratio.toFixed(2)}`;
+      drawSpectrumAndWaveform(ctx4, panel4.width, panel4.height, analyser);
     }
     requestAnimationFrame(tick);
   }
