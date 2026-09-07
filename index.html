@@ -61,14 +61,22 @@
   .param-row label { color: #ccc; }
   .param-value { font-family: monospace; color: #9ad; text-align: right; min-width: 5em; }
   input[type="range"] { width: 100%; }
+  #noteStatus, #pitchIndicator {
+    margin-top: 8px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #cc9;
+  }
 </style>
 </head>
 <body>
-  <h1>self_osc_synth（手順3: params.js + ui.js — スライダー）</h1>
+  <h1>self_osc_synth（手順4: midi.js + pitch.js — MIDI・QWERTY・裏返りインジケータ）</h1>
   <div id="warning" hidden></div>
   <button id="startBtn">開始（クリックで AudioContext 起動）</button>
   <button id="noteBtn" disabled>テスト音（ノートオン/オフ）</button>
   <pre id="status">（未起動）</pre>
+  <div id="noteStatus">（未演奏。QWERTY: z s x d c v g b h n j m ... で演奏可）</div>
+  <div id="pitchIndicator"></div>
   <div id="controls"></div>
 
   <script type="module" src="src/main.js"></script>

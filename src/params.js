@@ -152,3 +152,11 @@ export const EXPRESSION_SOURCE_DEFAULT = 'none';
 // 物理単位の目安換算（§5: 較正された測定値ではない）。
 export const P_M_KPA = 5; // p_M ≈ 5 kPa 仮定
 export const C_SOUND = 343; // m/s, 20°C
+
+// γ 定数（§5, §6）。手順6 の実測（発振閾値 γ_th_osc・跳躍閾値 γ_th_jump）で確定する
+// までは暫定値。**測定前にこれらを「正しい」と扱わない**（HANDOVER §6）。
+// 順序不変条件: γ_th_osc < GAMMA_BASE_MIN < GAMMA_BASE_MAX < γ_th_jump < GAMMA_CEILING ≤ 0.95（R48）。
+// GAMMA_BASE_MIN は既定パラメータでのみ校正される（R49）。
+export const GAMMA_BASE_MIN = 0.4; // 暫定。実測発振閾値 + マージンで確定する
+export const GAMMA_BASE_MAX = 0.6; // 暫定。第1レジスタを維持できる上限（跳躍閾値未満）
+export const GAMMA_CEILING = 0.95; // 暫定。跳躍閾値より上である必要がある

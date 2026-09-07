@@ -1,26 +1,27 @@
 // 起動・AudioContext・worklet ロード・配線（2出力 + AnalyserNode）。
-// 手順3: params.js のスライダーで AudioParam / oversample を操作できるようにする。
-// MIDI 配線は手順4。
+// 手順4: MIDI / QWERTY 配線、裏返りインジケータ（f0 推定）。
 
-import { manualParams } from './params.js';
+import { manualParams, GAMMA_BASE_MIN, GAMMA_BASE_MAX, GAMMA_CEILING, C_SOUND } from './params.js';
 import {
   buildParamSliders,
   buildEnvelopeControls,
   buildOversampleControl,
   buildExpressionSourceControl,
 } from './ui.js';
+import { createMidiController, connectWebMidi, attachQwertyFallback } from './midi.js';
+import { estimateF0 } from './pitch.js';
 
 const paramRateById = new Map(manualParams().map((p) => [p.id, p.rate]));
 const controlsEl = document.getElementById('controls');
 
-// MIDI 配線（手順4）が使う envelope/expressionSource の現在値。今は保持するだけ。
 const envelope = { attack: 20, release: 80 };
-let expressionSource = 'none';
 
 const warningEl = document.getElementById('warning');
 const startBtn = document.getElementById('startBtn');
 const noteBtn = document.getElementById('noteBtn');
 const statusEl = document.getElementById('status');
+const noteStatusEl = document.getElementById('noteStatus');
+const pitchIndicatorEl = document.getElementById('pitchIndicator');
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -37,6 +38,8 @@ if (location.protocol === 'file:') {
 let audioCtx = null;
 let workletNode = null;
 let analyser = null;
+let midiController = null;
+let currentTubeLength = 0.6; // f0 期待値の計算用（スライダー/ノートで更新）
 
 async function start() {
   if (audioCtx) return;
@@ -87,6 +90,7 @@ async function start() {
     if (rate === 'a-rate') {
       // tubeLength は worklet 内部で τ_D=15ms グライドするので即値でよい（§4.5）
       param.setValueAtTime(value, now);
+      if (id === 'tubeLength') currentTubeLength = value;
     } else {
       // k-rate: ジッパーノイズを避けるため短い時定数で滑らかに
       param.setTargetAtTime(value, now, 0.01);
@@ -102,35 +106,63 @@ async function start() {
   });
 
   buildExpressionSourceControl(controlsEl, (id) => {
-    expressionSource = id;
+    midiController.setExpressionSource(id);
   });
+
+  midiController = createMidiController(workletNode, audioCtx, {
+    getEnvelope: () => ({ attackMs: envelope.attack, releaseMs: envelope.release }),
+    gammaConstants: { gammaBaseMin: GAMMA_BASE_MIN, gammaBaseMax: GAMMA_BASE_MAX, gammaCeiling: GAMMA_CEILING },
+    onNoteChange: (text) => {
+      noteStatusEl.textContent = text;
+      const m = /L=([\d.]+)m/.exec(text);
+      if (m) currentTubeLength = Number(m[1]);
+    },
+  });
+
+  const midiAccess = await connectWebMidi(midiController);
+  if (!midiAccess) {
+    noteStatusEl.textContent += '（Web MIDI 非対応/拒否。QWERTY代替: z s x d c v g b h n j m ...）';
+  }
+  attachQwertyFallback(midiController, document);
+
+  startPitchIndicator();
 
   startBtn.disabled = true;
   noteBtn.disabled = false;
   setStatus('起動しました。');
 
   // デバッグ用（開発時のコンソール確認・自動テスト用）
-  window.__debug = { audioCtx, workletNode, analyser, envelope, get expressionSource() { return expressionSource; } };
+  window.__debug = { audioCtx, workletNode, analyser, envelope, midiController };
 }
 
-// 固定パラメータでのノートオン/オフ（手順2 の動作確認用。実際の MIDI 配線は手順4）
-let noteOn = false;
-function toggleNote() {
-  if (!workletNode) return;
-  const now = audioCtx.currentTime;
-  const gammaParam = workletNode.parameters.get('gamma');
-  const gateParam = workletNode.parameters.get('gate');
+// 裏返りインジケータ（§6）: 管の f0（=c/4L）/ 実際に鳴っている f0 / 比
+function startPitchIndicator() {
+  const buf = new Float32Array(analyser.fftSize);
+  function tick() {
+    if (analyser) {
+      analyser.getFloatTimeDomainData(buf);
+      const measured = estimateF0(buf, audioCtx.sampleRate);
+      const expected = C_SOUND / (4 * currentTubeLength);
+      const ratio = measured / expected;
+      pitchIndicatorEl.textContent = `管f0=${expected.toFixed(1)}Hz 実f0=${measured.toFixed(1)}Hz 比=${ratio.toFixed(2)}`;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
 
-  if (!noteOn) {
-    // tubeLength はスライダー（既定 0.6m）に任せる
-    gammaParam.setTargetAtTime(0.5, now, 20 / 3000);
-    gateParam.setTargetAtTime(1.0, now, 20 / 3000); // attack 20ms
+// 固定パラメータでのノートオン/オフ（動作確認用ボタン）
+let noteBtnOn = false;
+function toggleNote() {
+  if (!midiController) return;
+  if (!noteBtnOn) {
+    midiController.noteOn(69, 100); // A4
     noteBtn.textContent = 'テスト音（ノートオフ）';
-    noteOn = true;
+    noteBtnOn = true;
   } else {
-    gateParam.setTargetAtTime(0.0, now, 80 / 3000); // release 80ms
+    midiController.noteOff(69);
     noteBtn.textContent = 'テスト音（ノートオン/オフ）';
-    noteOn = false;
+    noteBtnOn = false;
   }
 }
 
